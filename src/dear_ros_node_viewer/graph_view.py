@@ -13,20 +13,13 @@
 # limitations under the License.
 """Class to display node graph"""
 from __future__ import annotations
-from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, TapTool, CustomJS, Rect, Label
 import networkx as nx
-from PIL import Image, ImageDraw, ImageFont
-from PIL import ImageGrab
-import pyautogui
-import time
-import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patchesp
 import dearpygui.dearpygui as dpg
-from PyQt5.QtWidgets import QApplication
-import sys
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import yaml
 from .logger_factory import LoggerFactory
 from .graph_layout import place_node_by_group, align_layout
@@ -142,188 +135,194 @@ class GraphView:
         dpg.add_menu_item(label="Show Callback", callback=self._cb_menu_caret_callbackbroup)
         with dpg.menu(label="PATH") as self.dpg_id_caret_path:
           pass
-      dpg.add_menu_item(label="save-SVG", callback=self._cb_menu_save_image) # add save PNG menu
+      # create SVG
+      with dpg.menu(label="SVG"):
+        dpg.add_menu_item(label="nodes:matplotlib", callback=self._cb_menu_nodes_matplotlib_graph)
+        dpg.add_menu_item(label="nodes:networkx", callback=self._cb_menu_nodes_networkx_graph)
+        dpg.add_menu_item(label="topics", callback=self._cb_menu_nodes_topics_graph)
 
-  def _cb_menu_save_image(self):
-          """ save image """
-          try:
-              matplotlib.use('agg')
+  def _cb_menu_nodes_matplotlib_graph(self, sender, app_data):
+      """ Node configuration diagram is drawn using matplotlib """
+      self._open_file_dialog("node:matplotlib")
 
-              # グラフの読み込み
-              filename = self.graph_viewmodel.graph_manager.dir + "architecture.yaml"
-              graph = caret2networkx(filename, 'all_graph', self.graph_viewmodel.graph_manager.app_setting['ignore_unconnected_nodes'])
-              graph = extend_callback_group(filename, graph)
-              self.graph_viewmodel.graph_manager.load_graph_postprocess(filename)
-              self.graph_viewmodel.graph_manager.caret_path_dict.update(get_path_dict(filename))
+  def _cb_menu_nodes_networkx_graph(self, sender, app_data):
+      """ Node configuration diagram is drawn using networkx """
+      self._open_file_dialog("node:networkx")
 
-              node_name_list: list[str] = []
-              topic_pub_dict: dict[str, list[str]] = {} # pubトピック情報を格納する辞書
-              topic_sub_dict: dict[str, list[str]] = {} # subトピック情報を格納する辞書
-              with open(filename, encoding='UTF-8') as file:
-                  yml = yaml.safe_load(file)
-                  parse_all_graph(yml, node_name_list, topic_pub_dict, topic_sub_dict) # node_name_list を取得するためだけに parse_all_graph を使用
+  def _cb_menu_nodes_topics_graph(self, sender, app_data):
+      """ nodes and topics graph """
+      #self._open_file_dialog("and_topic")
+      root = tk.Tk()
+      root.withdraw()
+      messagebox.showinfo("Warning", "Not supported yet")
+      root.destroy()
 
-              # トピックの属性を設定
-              for topic in topic_pub_dict:
-                  if topic in graph.nodes:
-                      graph.nodes[topic]['node_type'] = 'topic'
-              for topic in topic_sub_dict:
-                  if topic in graph.nodes:
-                      graph.nodes[topic]['node_type'] = 'topic'
+  def _open_file_dialog(self, graph_type):
+      """ SVG filename input dialogue """
+      root = tk.Tk()
+      root.withdraw()
+      filename = filedialog.asksaveasfilename(defaultextension=".svg", filetypes=[("SVG files", "*.svg")])
+      if filename:
+          self._cb_create_graph(graph_type, filename)
+      root.destroy()
 
-              # ノードの属性を設定
-              for node in node_name_list:
-                  if node in graph.nodes:
-                      graph.nodes[node]['node_type'] = 'node'
+  def _cb_create_graph(self, graph_type, output):
+    """ create graph and SVG """
+    matplotlib.use('agg')
 
-              # ノードのラベルを作成 (ここではテキスト描画用)
-              labels = {} # リストから辞書に変更
-              node_colors = []
-              node_sizes = []  # ノードサイズを格納するリスト
-              for node in graph.nodes:
-                  if graph.nodes[node]['node_type'] == 'node':
-                      # ノードの場合
-                      node_name = node.split('/')[-1] # ノード名の最後の部分を抽出
-                      if node_name.endswith('"'):
-                          node_name = node_name[:-1] # " を削除
-                      node_name = '/' + node_name # / をつける
-                      # ノード名を折り返す
-                      max_chars = 40 # 最大文字数
-                      if len(node_name) > max_chars:
-                          node_name = '\n'.join([node_name[i:i + max_chars] for i in range(0, len(node_name), max_chars)])
-                      labels[node] = node_name # テキスト描画用に保存
-                      # ノードの種類に応じて色分け
-                      if 'planning' in node:
-                          node_colors.append('lightcoral')
-                      elif 'perception' in node:
-                          node_colors.append('lightgreen')
-                      elif 'sensing' in node:
-                          node_colors.append('lightblue')
-                      elif 'localization' in node:
-                          node_colors.append('khaki')
-                      elif 'system' in node:
-                          node_colors.append('plum')
-                      elif 'control' in node:
-                          node_colors.append('paleturquoise')
-                      else:
-                          node_colors.append('silver') # vehicle とその他を統合
-                      node_sizes.append(len(node_name.split('\n')[0]) * 30 + 100) # ノードサイズをノード名の長さに合わせて調整
-                  else:
-                      # トピックの場合
-                      topic_name = node.split('/')[-1] # トピック名の最後の部分を抽出
-                      # トピック名を折り返す
-                      max_chars = 40 # 最大文字数
-                      if len(topic_name) > max_chars:
-                          topic_name = '\n'.join([topic_name[i:i + max_chars] for i in range(0, len(topic_name), max_chars)])
-                      labels[node] = topic_name
-                      node_colors.append('gainsboro')
-                      node_sizes.append(1000) # トピックのノードサイズは固定
+    # Read nodes and layout configuration
+    filename = self.graph_viewmodel.graph_manager.dir + "architecture.yaml"
+    graph = caret2networkx(filename, 'all_graph', self.graph_viewmodel.graph_manager.app_setting['ignore_unconnected_nodes'])
+    graph = extend_callback_group(filename, graph)
+    self.graph_viewmodel.graph_manager.load_graph_postprocess(filename)
+    self.graph_viewmodel.graph_manager.caret_path_dict.update(get_path_dict(filename))
 
-              # レイアウトの適用
-              graph = place_node_by_group(graph, self.graph_viewmodel.graph_manager.group_setting)
-              graph = align_layout(graph)
+    # nodes and topics info
+    node_name_list: list[str] = []
+    topic_pub_dict: dict[str, list[str]] = {}
+    topic_sub_dict: dict[str, list[str]] = {}
+    with open(filename, encoding='UTF-8') as file:
+        yml = yaml.safe_load(file)
+        parse_all_graph(yml, node_name_list, topic_pub_dict, topic_sub_dict)
+    for topic in topic_pub_dict:
+        if topic in graph.nodes:
+            graph.nodes[topic]['node_type'] = 'topic'
+    for topic in topic_sub_dict:
+        if topic in graph.nodes:
+            graph.nodes[topic]['node_type'] = 'topic'
+    for node in node_name_list:
+        if node in graph.nodes:
+            graph.nodes[node]['node_type'] = 'node'
 
-              # ノードとエッジの属性設定
-              pos = {node: graph.nodes[node]['pos'] for node in graph.nodes}
+    # make node label
+    labels = {}
+    node_colors = []
+    for node in graph.nodes:
+        if graph.nodes[node]['node_type'] == 'node':
+            # node
+            node_name = node.split('/')[-1] # Extract the last part of the node name
+            if node_name.endswith('"'):
+                node_name = node_name[:-1]  # Delete “ (double quote).
+            node_name = '/' + node_name     # add '/'
+            # Wrap node name with maximum number of characters
+            max_chars = 40
+            if len(node_name) > max_chars:
+                node_name = '\n'.join([node_name[i:i + max_chars] for i in range(0, len(node_name), max_chars)])
+            labels[node] = node_name
+            # Color-coded nodes for each component
+            if 'planning' in node:
+                node_colors.append('lightcoral')
+            elif 'perception' in node:
+                node_colors.append('lightgreen')
+            elif 'sensing' in node:
+                node_colors.append('lightblue')
+            elif 'localization' in node:
+                node_colors.append('khaki')
+            elif 'system' in node:
+                node_colors.append('plum')
+            elif 'control' in node:
+                node_colors.append('paleturquoise')
+            else:
+                node_colors.append('silver') # include vehicle
+        else:
+            # topic
+            topic_name = node.split('/')[-1] # Extract the last part of the node topic
+            # Wrap topic name with maximum number of characters
+            max_chars = 40
+            if len(topic_name) > max_chars:
+                topic_name = '\n'.join([topic_name[i:i + max_chars] for i in range(0, len(topic_name), max_chars)])
+            labels[node] = topic_name
+            node_colors.append('gainsboro')
 
-              # ノードの y 座標を反転
-              for node in pos:
-                  pos[node][1] = 1 - pos[node][1]
+    # Applying Layout
+    graph = place_node_by_group(graph, self.graph_viewmodel.graph_manager.group_setting)
+    graph = align_layout(graph)
 
-              # エッジの色を取得
-              edge_colors = []
-              for edge in graph.edges:
-                  edge_key = (edge[0], edge[1])
-                  if edge_key in self.graph_viewmodel.dpg_bind['edge_color']:
-                      color_id = self.graph_viewmodel.dpg_bind['edge_color'][edge_key]
-                      if dpg.get_item_type(color_id) == dpg.mvThemeColor:
-                          color_value = dpg.get_item_configuration(color_id)['color']
-                          color_value = [c / 255.0 for c in color_value]
-                          edge_colors.append(color_value)
-                      else:
-                          edge_colors.append([128/255.0, 128/255.0, 128/255.0])
-                  else:
-                      # エッジの色を publish しているノードの色に合わせる
-                      publish_node = edge[0]
-                      if graph.nodes[publish_node]['node_type'] == 'node':
-                          if 'planning' in publish_node:
-                              edge_colors.append('lightcoral')
-                          elif 'perception' in publish_node:
-                              edge_colors.append('lightgreen')
-                          elif 'sensing' in publish_node:
-                              edge_colors.append('lightblue')
-                          elif 'localization' in publish_node:
-                              edge_colors.append('khaki')
-                          elif 'system' in publish_node:
-                              edge_colors.append('plum')
-                          elif 'control' in publish_node:
-                              edge_colors.append('paleturquoise')
-                          else:
-                              edge_colors.append('silver') # vehicle とその他を統合
-                      else:
-                          edge_colors.append('gainsboro')
+    # Create a node location dictionary
+    pos = {node: graph.nodes[node]['pos'] for node in graph.nodes}
 
-              # 描画
-              #plt.figure(figsize=(20, 10))
-              fig, ax = plt.subplots(figsize=(20, 10))
-              ax = plt.gca() # 現在の Axes を取得
-              nx.draw_networkx(graph, pos,
-                                              node_color=node_colors, # ノードの色を適用
-                                              edge_color=edge_colors,
-                                              with_labels=False, # ここではラベルを描画しない
-                                              node_size=0, # ノードを非表示にする
-                                              width=1, # リンク線を細くする
-                                              alpha=0.8,
-                                              connectionstyle='arc3,rad=0.1'
-                                              )
+    #  Reverse y-coordinates networkx -> matplotlib convert
+    for node in pos:
+        pos[node][1] = 1 - pos[node][1]
 
-              # ノードに矩形とテキストを追加
-              for node, (x, y) in pos.items():
-                  label = labels[node]
-                  node_color = node_colors[list(graph.nodes).index(node)] # ノードの色を取得
-                  if graph.nodes[node]['node_type'] == 'node':
-                      bbox_props = dict(boxstyle="square,pad=0.3", fc=node_color, ec="k", lw=0.5) # 矩形の色をノードの色に設定
-                  else:
-                      bbox_props = dict(boxstyle="square,pad=0.3", fc='gainsboro', ec="k", lw=0.5) # 矩形の色をグレーに設定
-                  ax.text(x, y, label, ha='center', va='center', fontsize=5, bbox=bbox_props)
+    # get edge colors
+    edge_colors = []
+    for edge in graph.edges:
+        edge_key = (edge[0], edge[1])
+        if edge_key in self.graph_viewmodel.dpg_bind['edge_color']:
+            color_id = self.graph_viewmodel.dpg_bind['edge_color'][edge_key]
+            if dpg.get_item_type(color_id) == dpg.mvThemeColor:
+                color_value = dpg.get_item_configuration(color_id)['color']
+                color_value = [c / 255.0 for c in color_value]
+                edge_colors.append(color_value)
+            else:
+                edge_colors.append([128/255.0, 128/255.0, 128/255.0])
+        else:
+            # Set the edge color to the color of the publish node
+            publish_node = edge[0]
+            if graph.nodes[publish_node]['node_type'] == 'node':
+                if 'planning' in publish_node:
+                    edge_colors.append('lightcoral')
+                elif 'perception' in publish_node:
+                    edge_colors.append('lightgreen')
+                elif 'sensing' in publish_node:
+                    edge_colors.append('lightblue')
+                elif 'localization' in publish_node:
+                    edge_colors.append('khaki')
+                elif 'system' in publish_node:
+                    edge_colors.append('plum')
+                elif 'control' in publish_node:
+                    edge_colors.append('paleturquoise')
+                else:
+                    edge_colors.append('silver') # include vehicle
+            else:
+                edge_colors.append('gainsboro')
 
-              # annotate の設定
-              annot = ax.annotate("", xy=(0, 0), xytext=(5, 5), textcoords="offset points", bbox=dict(boxstyle="round,pad=0.3", fc="w", lw=2))
-              annot.set_visible(False)
+    # draw
+    if graph_type == 'node:matplotlib':
+      plt.figure(figsize=(20, 10))
+      ax = plt.gca() # get current axes of matplotlib.pyplot
+      nx.draw_networkx(
+        graph, pos,
+        node_color=node_colors,
+        edge_color=edge_colors,
+        with_labels=False, # hide labels
+        node_size=0, # hide nodes
+        width=1,
+        alpha=0.8,
+        connectionstyle='arc3,rad=0.1'
+      )
 
-              def update_annot(ind):
-                node_index = ind["ind"][0]
-                node = list(graph.nodes)[node_index]
-                annot.xy = pos[node]
-                text = labels[node]
-                annot.set_text(text)
-                annot.get_bbox_patch().set_facecolor(node_colors[node_index])
-                annot.get_bbox_patch().set_alpha(0.8)
+      # Adding rectangles and text to nodes in matplotlib
+      for node, (x, y) in pos.items():
+          label = labels[node]
+          node_color = node_colors[list(graph.nodes).index(node)] # get nodes colors
+          if graph.nodes[node]['node_type'] == 'node':
+              bbox_props = dict(boxstyle="square,pad=0.3", fc=node_color, ec="k", lw=0.5) # Set the color of the rectangle to the color of the node
+          else:
+              bbox_props = dict(boxstyle="square,pad=0.3", fc='gainsboro', ec="k", lw=0.5) # Rectangle color set to gray
+          ax.text(x, y, label, ha='center', va='center', fontsize=5, bbox=bbox_props)
+    else:
+      # networkx
+      plt.figure(figsize=(22, 10))
+      ax = plt.gca()
+      nx.draw_networkx(
+        graph, pos,
+        node_color=node_colors,
+        edge_color=edge_colors,
+        labels=labels,  # draw labels
+        node_size=300,
+        node_shape='s', # rectangle shape
+        font_size=3,
+        width=1,
+        alpha=0.8,
+        connectionstyle='arc3,rad=0.1'
+      )
 
-              def hover(event):
-                  vis = annot.get_visible()
-                  if event.inaxes == ax:
-                      for node_index, node in enumerate(graph.nodes):
-                          contains, ind = ax.collections[0].contains(event)
-                          if contains:
-                              update_annot(ind)
-                              annot.set_visible(True)
-                              fig.canvas.draw_idle()
-                          else:
-                              if vis:
-                                  annot.set_visible(False)
-                                  fig.canvas.draw_idle()
-
-              fig.canvas.mpl_connect("motion_notify_event", hover)
-
-              plt.tight_layout()
-
-              plt.savefig('graph.svg', format='svg') # SVG 形式で保存
-              plt.close()
-              print("グラフをgraph.svgに保存しました。")
-              #print("グラフを表示しました。")
-          except Exception as e:
-              print(f"グラフの保存に失敗しました: {e}")
+    plt.tight_layout()
+    plt.savefig(output, format='svg') # SVG
+    plt.close()
+    print(f'save to {output}')
 
   def add_node_in_dpg(self):
     """ Add nodes and attributes """
