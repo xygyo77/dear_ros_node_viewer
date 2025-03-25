@@ -135,29 +135,58 @@ class GraphView:
         dpg.add_menu_item(label="Show Callback", callback=self._cb_menu_caret_callbackbroup)
         with dpg.menu(label="PATH") as self.dpg_id_caret_path:
           pass
+
+      # selectable layout
+      with dpg.menu(label="layout"):
+        dpg.add_menu_item(label="Reset", callback=self._cb_menu_layout_reset)
+        dpg.add_menu_item(label="Save", callback=self._cb_menu_layout_save2)
+        dpg.add_menu_item(label="Load", callback=self._cb_menu_layout_load2)
+
       # create SVG
       with dpg.menu(label="SVG"):
         dpg.add_menu_item(label="nodes:matplotlib", callback=self._cb_menu_nodes_matplotlib_graph)
         dpg.add_menu_item(label="nodes:networkx", callback=self._cb_menu_nodes_networkx_graph)
         dpg.add_menu_item(label="topics", callback=self._cb_menu_nodes_topics_graph)
 
+  def _cb_menu_layout_save2(self, sender, app_data):
+      """ Save layout file json """
+      self._select_file_dialog("save")
+
+  def _cb_menu_layout_load2(self, sender, app_data):
+      """ Load layout file json """
+      self._select_file_dialog("load")
+
+  def _select_file_dialog(self, ope):
+      """ layout filename input dialogue """
+      root = tk.Tk()
+      root.withdraw()
+      if ope is 'load':
+        filename = filedialog.askopenfilename(defaultextension=".json", filetypes=[("layout files", "*.json")])
+        self.graph_viewmodel.layout_file = filename
+        self.graph_viewmodel.load_layout()
+      else:
+        filename = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("layout files", "*.json")])
+        self.graph_viewmodel.layout_file = filename
+        self.graph_viewmodel.save_layout()
+      root.destroy()
+
   def _cb_menu_nodes_matplotlib_graph(self, sender, app_data):
       """ Node configuration diagram is drawn using matplotlib """
-      self._open_file_dialog("node:matplotlib")
+      self._save_svg_file_dialog("node:matplotlib")
 
   def _cb_menu_nodes_networkx_graph(self, sender, app_data):
       """ Node configuration diagram is drawn using networkx """
-      self._open_file_dialog("node:networkx")
+      self._save_svg_file_dialog("node:networkx")
 
   def _cb_menu_nodes_topics_graph(self, sender, app_data):
       """ nodes and topics graph """
-      #self._open_file_dialog("topics")
+      #self._save_svg_file_dialog("topics")
       root = tk.Tk()
       root.withdraw()
       messagebox.showinfo("Warning", "Not supported yet")
       root.destroy()
 
-  def _open_file_dialog(self, graph_type):
+  def _save_svg_file_dialog(self, graph_type):
       """ SVG filename input dialogue """
       root = tk.Tk()
       root.withdraw()

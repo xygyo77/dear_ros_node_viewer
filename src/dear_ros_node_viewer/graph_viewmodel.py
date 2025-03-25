@@ -47,6 +47,7 @@ class GraphViewModel:
     self.graph_size: list[int] = [1920, 1080]
     self.graph_manager = GraphManager(app_setting, group_setting)
     self.node_selected_dict: dict[str, bool] = {}    # [node_name, is_selected]
+    self.layout_file = None
 
     # bind list to components in PyGui
     self.dpg_bind = {
@@ -223,7 +224,10 @@ class GraphViewModel:
   def load_layout(self):
     """ Load node layout """
     graph = self.get_graph()
-    filename = self.graph_manager.dir + 'layout.json'
+    if self.layout_file is not None:
+      filename = self.layout_file
+    else:
+      filename = self.graph_manager.dir + 'layout.json'
     if not os.path.exists(filename):
       logger.info('%s does not exist. Use auto layout', filename)
       return
@@ -242,7 +246,10 @@ class GraphViewModel:
       pos = (pos[0] / self.graph_size[0], pos[1] / self.graph_size[1])
       pos_dict[node_name] = pos
 
-    filename = self.graph_manager.dir + '/layout.json'
+    if self.layout_file is not None:
+      filename = self.layout_file  # 'layout.json'
+    else:
+      filename = self.graph_manager.dir + 'layout.json'
     with open(filename, encoding='UTF-8', mode='w') as f_layout:
       json.dump(pos_dict, f_layout, ensure_ascii=True, indent=4)
 
