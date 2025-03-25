@@ -151,7 +151,7 @@ class GraphView:
 
   def _cb_menu_nodes_topics_graph(self, sender, app_data):
       """ nodes and topics graph """
-      #self._open_file_dialog("and_topic")
+      #self._open_file_dialog("topics")
       root = tk.Tk()
       root.withdraw()
       messagebox.showinfo("Warning", "Not supported yet")
@@ -172,10 +172,9 @@ class GraphView:
 
     # Read nodes and layout configuration
     filename = self.graph_viewmodel.graph_manager.dir + "architecture.yaml"
-    graph = caret2networkx(filename, 'all_graph', self.graph_viewmodel.graph_manager.app_setting['ignore_unconnected_nodes'])
-    graph = extend_callback_group(filename, graph)
-    self.graph_viewmodel.graph_manager.load_graph_postprocess(filename)
-    self.graph_viewmodel.graph_manager.caret_path_dict.update(get_path_dict(filename))
+    self.graph_viewmodel.load_graph(filename)
+    self.update_node_editor()
+    graph = self.graph_viewmodel.get_graph()
 
     # nodes and topics info
     node_name_list: list[str] = []
@@ -234,14 +233,10 @@ class GraphView:
             labels[node] = topic_name
             node_colors.append('gainsboro')
 
-    # Applying Layout
-    graph = place_node_by_group(graph, self.graph_viewmodel.graph_manager.group_setting)
-    graph = align_layout(graph)
-
     # Create a node location dictionary
     pos = {node: graph.nodes[node]['pos'] for node in graph.nodes}
-
-    #  Reverse y-coordinates networkx -> matplotlib convert
+         
+    #  Reverse y-coordinates
     for node in pos:
         pos[node][1] = 1 - pos[node][1]
 
@@ -305,7 +300,6 @@ class GraphView:
     else:
       # networkx
       plt.figure(figsize=(22, 10))
-      ax = plt.gca()
       nx.draw_networkx(
         graph, pos,
         node_color=node_colors,
@@ -320,7 +314,7 @@ class GraphView:
       )
 
     plt.tight_layout()
-    plt.savefig(output, format='svg') # SVG
+    plt.savefig(output, format='svg')
     plt.close()
     print(f'save to {output}')
 
