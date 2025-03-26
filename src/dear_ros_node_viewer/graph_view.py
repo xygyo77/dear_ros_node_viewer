@@ -252,15 +252,6 @@ class GraphView:
                 node_colors.append('paleturquoise')
             else:
                 node_colors.append('silver') # include vehicle
-        else:
-            # topic
-            topic_name = node.split('/')[-1] # Extract the last part of the node topic
-            # Wrap topic name with maximum number of characters
-            max_chars = 40
-            if len(topic_name) > max_chars:
-                topic_name = '\n'.join([topic_name[i:i + max_chars] for i in range(0, len(topic_name), max_chars)])
-            labels[node] = topic_name
-            node_colors.append('gainsboro')
 
     # Create a node location dictionary
     pos = {node: graph.nodes[node]['pos'] for node in graph.nodes}
