@@ -71,6 +71,7 @@ class GraphViewModel:
 
   def load_graph(self, graph_filename: str):
     """Load Graph from file"""
+    logger.info(f"!!! {graph_filename}")
     if '.yaml' in graph_filename:
       try:
         self.graph_manager.load_graph_from_caret(graph_filename)
